@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spelling Bee Tracker</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; background: #f7f7f7; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
+    th { background-color: #e3e3e3; }
+    .correct { background-color: #d4f4d4; }
+    .wrong { background-color: #fdd; }
+    select, input[type="text"], button { margin: 0.25rem; padding: 0.5rem; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Spelling Bee Tracker</h1>
+  <div>
+    <strong>Scores:</strong>
+    <span id="p1Score">Player 1: 0</span> |
+    <span id="p2Score">Player 2: 0</span>
+  </div>
+
+  <label for="gradeSelect"><strong>Select Grade:</strong></label>
+  <select id="gradeSelect"></select>
+
+  <div style="margin-top:1rem;">
+    <strong>Add Words:</strong><br>
+    <input type="text" id="p1Input" placeholder="Player 1 word">
+    <input type="text" id="p2Input" placeholder="Player 2 word">
+    <button onclick="addWords()">Add Word(s)</button>
+    <p id="bankInfo" style="font-size: 0.9rem; color: #555;"></p>
+  </div>
+
+  <table id="beeTable">
+    <thead>
+      <tr>
+        <th>P1 ✓</th>
+        <th>P1 ✗</th>
+        <th>Player 1 Word</th>
+        <th>P2 ✓</th>
+        <th>P2 ✗</th>
+        <th>Player 2 Word</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const wordLists = {"Grade2": {"p1": ["able", "twig", "forty", "roar", "music"], "p2": ["raise", "mine", "fancy", "voice", "garden"]}, "Grade3": {"p1": ["verge", "portion", "notable", "tropics", "version"], "p2": ["drizzle", "honesty", "watchman", "etching", "nervous"]}, "Grade4": {"p1": ["sphere", "censure", "adhere", "frugal", "punctual"], "p2": ["swarm", "flinch", "obstruct", "orator", "impose"]}, "Grade5": {"p1": ["interior", "howling", "hopelessness", "goblet", "fanfare"], "p2": ["imitate", "hale", "graze", "gardenia", "faithful"]}, "Grade6": {"p1": ["grocery", "champion", "ecology", "catastrophe", "drought"], "p2": ["cursor", "gender", "convey", "fourth", "computer"]}, "Grade7": {"p1": ["cornea", "allegory", "absurdity", "cleanser", "arsenal"], "p2": ["braggart", "unrestrained", "biceps", "cello", "tariff"]}, "Grade8": {"p1": ["welfares", "valet", "supersede", "sleuth", "quell"], "p2": ["voluminous", "tartar", "stomachic", "rhetoric", "psalmist"]}};
+
+    const gradeSelect = document.getElementById("gradeSelect");
+    const tableBody = document.querySelector("#beeTable tbody");
+    const bankInfo = document.getElementById("bankInfo");
+    let bank = { p1: null, p2: null };
+
+    Object.keys(wordLists).forEach(g => {
+      let opt = document.createElement("option");
+      opt.value = g;
+      opt.textContent = g;
+      gradeSelect.appendChild(opt);
+    });
+
+    function saveProgress(grade, i, player, type, value) {
+      localStorage.setItem(`${grade}_${i}_${player}_${type}`, value);
+      updateScores();
+    }
+
+    function loadProgress(grade, i, player, type) {
+      return localStorage.getItem(`${grade}_${i}_${player}_${type}`) === "true";
+    }
+
+    function updateScores() {
+      let s1 = 0, s2 = 0;
+      document.querySelectorAll("#beeTable tbody tr").forEach(row => {
+        const boxes = row.querySelectorAll("input[type=checkbox]");
+        if (boxes[0].checked) s1++;
+        if (boxes[2].checked) s2++;
+      });
+      document.getElementById("p1Score").textContent = `Player 1: ${s1}`;
+      document.getElementById("p2Score").textContent = `Player 2: ${s2}`;
+    }
+
+    function updateBankInfo() {
+      const msg = [];
+      if (bank.p1) msg.push(`Waiting for Player 2 word to pair with "${bank.p1}"`);
+      if (bank.p2) msg.push(`Waiting for Player 1 word to pair with "${bank.p2}"`);
+      bankInfo.textContent = msg.join(" — ");
+    }
+
+    function makeCheckbox(grade, i, player, type, row) {
+      const td = document.createElement("td");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = loadProgress(grade, i, player, type);
+      box.addEventListener("change", () => {
+        saveProgress(grade, i, player, type, box.checked);
+        const c = row.querySelectorAll("input[type=checkbox]");
+        updateRowHighlight(row, c[0].checked, c[1].checked, c[2].checked, c[3].checked);
+      });
+      td.appendChild(box);
+      return { td, box };
+    }
+
+    function updateRowHighlight(row, p1c, p1w, p2c, p2w) {
+      row.classList.remove("correct", "wrong");
+      if (p1c || p2c) row.classList.add("correct");
+      if (p1w || p2w) row.classList.add("wrong");
+      updateScores();
+    }
+
+    function createTextCell(text) {
+      const td = document.createElement("td");
+      td.textContent = text || "";
+      return td;
+    }
+
+    function renderTable(grade) {
+      tableBody.innerHTML = "";
+      const { p1, p2 } = wordLists[grade];
+      const maxLen = Math.max(p1.length, p2.length);
+      for (let i = 0; i < maxLen; i++) {
+        const row = document.createElement("tr");
+        const c1 = makeCheckbox(grade, i, "p1", "correct", row);
+        const c2 = makeCheckbox(grade, i, "p1", "wrong", row);
+        const c3 = makeCheckbox(grade, i, "p2", "correct", row);
+        const c4 = makeCheckbox(grade, i, "p2", "wrong", row);
+        row.append(c1.td, c2.td, createTextCell(p1[i]), c3.td, c4.td, createTextCell(p2[i]));
+        updateRowHighlight(row, c1.box.checked, c2.box.checked, c3.box.checked, c4.box.checked);
+        tableBody.appendChild(row);
+      }
+      updateScores();
+    }
+
+    function addWords() {
+      const grade = gradeSelect.value;
+      const word1 = document.getElementById("p1Input").value.trim();
+      const word2 = document.getElementById("p2Input").value.trim();
+      if (word1 && word2) {
+        wordLists[grade].p1.push(word1);
+        wordLists[grade].p2.push(word2);
+        bank = { p1: null, p2: null };
+      } else if (word1) {
+        bank.p1 = word1;
+        if (bank.p2) {
+          wordLists[grade].p1.push(bank.p1);
+          wordLists[grade].p2.push(bank.p2);
+          bank = { p1: null, p2: null };
+        }
+      } else if (word2) {
+        bank.p2 = word2;
+        if (bank.p1) {
+          wordLists[grade].p1.push(bank.p1);
+          wordLists[grade].p2.push(bank.p2);
+          bank = { p1: null, p2: null };
+        }
+      }
+      document.getElementById("p1Input").value = "";
+      document.getElementById("p2Input").value = "";
+      renderTable(grade);
+      updateBankInfo();
+    }
+
+    gradeSelect.addEventListener("change", () => {
+      renderTable(gradeSelect.value);
+      updateBankInfo();
+    });
+
+    const initial = Object.keys(wordLists)[0];
+    gradeSelect.value = initial;
+    renderTable(initial);
+    updateBankInfo();
+  </script>
+</body>
+</html>
